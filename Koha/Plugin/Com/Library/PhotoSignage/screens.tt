@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Screen studio · Photo Signage</title>
+    <style>[% editor_css %]</style>
+</head>
+<body>
+    <script type="application/json" id="signage-boot">[% boot_json %]</script>
+    <div class="studio-shell">
+        <header class="topbar">
+            <a class="brand" href="[% back_url | html %]">
+                <span class="brand-mark" aria-hidden="true">PS</span>
+                <span><strong>Photo Signage</strong><small>Staff screen studio</small></span>
+            </a>
+            <div class="topbar-actions">
+                <span class="staff-badge"><span class="status-dot"></span> Staff workspace</span>
+                <a class="quiet-link" href="[% back_url | html %]">← Slideshow &amp; media library</a>
+            </div>
+        </header>
+        <main class="studio-main">
+            <div class="page-heading">
+                <div>
+                    <p class="eyebrow">PUBLIC DISPLAY DESIGN</p>
+                    <h1>Screen studio</h1>
+                    <p class="lede">Shape independent regions into a screen that feels like your library.</p>
+                </div>
+                <div class="heading-meta"><span class="live-indicator"></span><span id="save-state" role="status">All changes are local until saved</span></div>
+            </div>
+            <div id="notice-area" aria-live="polite"></div>
+
+            <section class="workspace" aria-label="Screen editor">
+                <aside class="rail">
+                    <div class="rail-heading">
+                        <div><p class="eyebrow">YOUR SCREENS</p><h2>Displays</h2></div>
+                        <button type="button" class="icon-button" id="new-screen" aria-label="Create a screen" title="Create a screen">+</button>
+                    </div>
+                    <div id="screen-list" class="screen-list" aria-label="Screens"></div>
+                    <div class="rail-divider"></div>
+                    <div class="rail-heading small-heading"><div><p class="eyebrow">REUSABLE LAYOUTS</p><h2>Templates</h2></div></div>
+                    <div id="template-list" class="template-list" aria-label="Templates"></div>
+                    <button type="button" class="text-action" id="new-template">＋ Save screen as template</button>
+                    <div class="rail-footer">
+                        <span class="rail-index">01 <i></i> STUDIO</span>
+                        <p>One canvas. Many messages.</p>
+                    </div>
+                </aside>
+
+                <section class="editor-column" aria-label="Selected screen">
+                    <div id="empty-selection" class="welcome-panel" hidden>
+                        <div class="welcome-art" aria-hidden="true"><span></span><span></span><span></span></div>
+                        <p class="eyebrow">A CANVAS FOR YOUR SPACE</p>
+                        <h2>Bring the room<br>into focus.</h2>
+                        <p>Create a screen, then arrange clocks, announcements and media in their own regions.</p>
+                        <button type="button" class="button button-primary" id="empty-create">Create your first screen <span aria-hidden="true">↗</span></button>
+                    </div>
+                    <div id="editor-content" hidden>
+                        <div class="screen-heading">
+                            <div class="screen-title-wrap">
+                                <p class="eyebrow" id="selection-kind">SCREEN / DRAFT</p>
+                                <label class="screen-name-label" for="screen-name">Display name</label>
+                                <input id="screen-name" class="screen-name" type="text" maxlength="120" autocomplete="off">
+                            </div>
+                            <div class="screen-heading-actions">
+                                <button type="button" class="button button-soft" id="duplicate-screen">Duplicate</button>
+                                <button type="button" class="button button-danger" id="delete-screen">Delete</button>
+                                <button type="button" class="button button-primary" id="save-screen">Save draft</button>
+                            </div>
+                        </div>
+                        <div id="screen-status" class="screen-status"></div>
+                        <div class="canvas-layout">
+                            <div class="canvas-side">
+                                <div class="canvas-toolbar">
+                                    <div><span class="eyebrow">CANVAS</span><strong id="canvas-dimensions">1920 × 1080</strong></div>
+                                    <button type="button" class="button button-quiet" id="add-region">＋ Add region</button>
+                                </div>
+                                <div class="canvas-frame-wrap">
+                                    <div id="canvas-frame" class="canvas-frame" aria-label="Screen layout preview"></div>
+                                </div>
+                                <div class="canvas-foot">
+                                    <span><b class="legend-dot"></b> Drag to place · handles to resize</span>
+                                    <span id="region-count">0 regions</span>
+                                </div>
+                                <div class="dimension-strip">
+                                    <div class="field-group">
+                                        <label for="screen-width">Width</label><div class="unit-input"><input id="screen-width" type="number" min="240" max="4096" step="1"><span>px</span></div>
+                                    </div>
+                                    <span class="dimension-times" aria-hidden="true">×</span>
+                                    <div class="field-group">
+                                        <label for="screen-height">Height</label><div class="unit-input"><input id="screen-height" type="number" min="240" max="4096" step="1"><span>px</span></div>
+                                    </div>
+                                    <div class="orientation-tools" role="group" aria-label="Orientation presets">
+                                        <button type="button" data-orientation="landscape" class="orientation-button">Landscape</button>
+                                        <button type="button" data-orientation="portrait" class="orientation-button">Portrait</button>
+                                    </div>
+                                </div>
+                                <div class="background-row">
+                                    <label for="screen-background">Canvas background</label>
+                                    <input id="screen-background" type="color" aria-label="Canvas background colour">
+                                    <span id="background-value" class="mono-value">#171b23</span>
+                                </div>
+                                <div class="region-stack">
+                                    <div class="stack-heading"><div><p class="eyebrow">LAYERS</p><h3>Regions <span id="layer-count">00</span></h3></div><span class="stack-hint">Top item is frontmost</span></div>
+                                    <ol id="region-list" class="region-list"></ol>
+                                </div>
+                            </div>
+                            <aside id="region-inspector" class="inspector" aria-label="Region settings">
+                                <div id="inspector-empty" class="inspector-empty"><span class="inspector-cross" aria-hidden="true">＋</span><h3>Choose a region</h3><p>Select a layer to adjust its content and placement.</p></div>
+                                <div id="inspector-content" hidden></div>
+                            </aside>
+                        </div>
+                        <section class="delivery-panel" aria-label="Publish and preview">
+                            <div class="delivery-copy">
+                                <p class="eyebrow">READY WHEN YOU ARE</p>
+                                <h3>Drafts stay private.</h3>
+                                <p>Save as you work. Publish only when this layout is ready for the public display.</p>
+                                <div id="public-link-wrap" class="public-link-wrap" hidden><label for="public-link">Public screen address</label><div class="copy-line"><input id="public-link" type="text" readonly><button type="button" class="button button-soft" id="copy-public-link">Copy</button></div><span id="copy-status" role="status"></span></div>
+                            </div>
+                            <div class="delivery-actions">
+                                <button type="button" class="button button-soft" id="open-preview">Preview saved draft ↗</button>
+                                <button type="button" class="button button-publish" id="publish-screen">Publish screen <span aria-hidden="true">↗</span></button>
+                                <label class="enabled-switch"><input type="checkbox" id="screen-enabled"><span class="switch-track"></span><span id="enabled-label">Enabled on public screens</span></label>
+                            </div>
+                        </section>
+                        <section id="template-editor" class="template-editor" hidden></section>
+                    </div>
+                </section>
+            </section>
+            <footer class="page-footer"><span>PHOTO SIGNAGE <i>•</i> SCREEN STUDIO</span><span>Designed for the spaces people share.</span></footer>
+        </main>
+    </div>
+    <script>[% editor_js %]</script>
+</body>
+</html>

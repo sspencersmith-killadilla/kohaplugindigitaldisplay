@@ -1,0 +1,301 @@
+[% USE Koha %]
+[% INCLUDE 'doc-head-open.inc' %]
+<title>Photo Signage</title>
+[% INCLUDE 'doc-head-close.inc' %]
+<style>
+    .ps-wrap { max-width: 1180px; margin: 1.5rem auto; padding: 0 1rem; }
+    .ps-heading { display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap; }
+    .ps-heading h1 { margin:0; }
+    .ps-summary { color:#5b6470; margin:.4rem 0 1.25rem; }
+    .ps-panel { background:#fff; border:1px solid #d8dde3; border-radius:8px; padding:1.2rem; margin:1rem 0; }
+    .ps-form-row { display:flex; flex-wrap:wrap; align-items:end; gap:1rem; }
+    .ps-form-row label { display:block; font-weight:600; margin-bottom:.35rem; }
+    .ps-form-row input[type="text"], .ps-form-row input[type="number"], .ps-form-row select { min-width:180px; }
+    .ps-link-row { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
+    .ps-link-row input { flex:1 1 32rem; min-width:16rem; font-family:monospace; }
+    .ps-list { display:grid; gap:.75rem; margin-top:1rem; }
+    .ps-photo { display:grid; grid-template-columns:150px minmax(180px,1fr) auto; gap:1rem; align-items:center; border:1px solid #d8dde3; border-radius:8px; padding:.75rem; }
+    .ps-thumb { width:150px; height:94px; object-fit:cover; background:#111827; border-radius:5px; }
+    .ps-type-placeholder { display:grid; place-items:center; width:150px; height:94px; background:#182436; color:#e7edf5; border-radius:5px; font-weight:700; }
+    .ps-photo video.ps-thumb { object-fit:cover; }
+    .ps-controls { display:flex; flex-wrap:wrap; gap:.35rem; justify-content:flex-end; }
+    .ps-muted { color:#5b6470; font-size:.92em; }
+    .ps-source { overflow-wrap:anywhere; }
+    .ps-alert { padding:.8rem 1rem; border-radius:6px; margin:1rem 0; }
+    .ps-alert-success { background:#eaf5ee; border:1px solid #b9ddc4; }
+    .ps-alert-error { background:#fff0ee; border:1px solid #e6b7b1; }
+    @media(max-width:700px) { .ps-photo { grid-template-columns:90px 1fr; } .ps-thumb { width:90px;height:72px; } .ps-controls { grid-column:1/-1; justify-content:flex-start; } }
+</style>
+</head>
+<body id="plugin_photo_signage" class="catalog">
+[% INCLUDE 'header.inc' %]
+[% INCLUDE 'cat-search.inc' %]
+<main class="ps-wrap">
+    <div class="ps-heading">
+        <h1>Photo Signage</h1>
+        <a id="open-public-slideshow" class="btn btn-primary" href="[% player_url | html %]" target="_blank" rel="noopener">Open public slideshow</a>
+    </div>
+    <p class="ps-summary">Manage an ordered mix of media for a public full-screen display. Uploads and editing are staff-only.</p>
+    <p><a class="btn btn-primary" href="?class=Koha::Plugin::Com::Library::PhotoSignage&amp;method=tool&amp;view=screens">Manage screens and visual templates</a></p>
+
+    <section class="ps-panel" aria-labelledby="link-heading">
+        <h2 id="link-heading">Public slideshow link</h2>
+        <p class="ps-muted">No Koha login is needed to view this link. Anyone who can reach it can see enabled slides and their media. Only include content intended for public display.</p>
+        <div class="ps-link-row">
+            <input id="signage-link" type="text" readonly aria-label="Public slideshow address" value="[% player_url | html %]">
+            <button id="copy-signage-link" class="btn btn-default" type="button">Copy link</button>
+        </div>
+        <p id="copy-link-status" class="ps-muted" role="status" aria-live="polite"></p>
+        [% IF player_same_server %]
+        <p class="ps-muted">This is a same-server link, not a detected public catalogue address. To point it to your OPAC, enter its full address under “OPAC address fallback” below. Koha’s OPACBaseURL is used automatically when available.</p>
+        [% END %]
+    </section>
+
+    <script>
+        (function () {
+            const field = document.getElementById('signage-link');
+            const button = document.getElementById('copy-signage-link');
+            const status = document.getElementById('copy-link-status');
+            if (!field || !button) return;
+            // Resolve against the actual tool page, not a document <base> tag.
+            const address = new URL(field.value, window.location.href).href;
+            field.value = address;
+            document.getElementById('open-public-slideshow').href = address;
+
+            button.addEventListener('click', async function () {
+                try {
+                    await navigator.clipboard.writeText(field.value);
+                    status.textContent = 'Slideshow link copied.';
+                } catch (error) {
+                    field.focus();
+                    field.select();
+                    const copied = document.execCommand('copy');
+                    status.textContent = copied
+                        ? 'Slideshow link copied.'
+                        : 'Link selected. Copy it with your keyboard shortcut.';
+                }
+            });
+        }());
+    </script>
+
+    [% IF message %]
+        <div class="ps-alert ps-alert-success" role="status">[% message | html %]</div>
+    [% END %]
+    [% IF error %]
+        <div class="ps-alert ps-alert-error" role="alert">[% error | html %]</div>
+    [% END %]
+
+    <section class="ps-panel" aria-labelledby="add-heading">
+        <h2 id="add-heading">Add a slide</h2>
+        <p class="ps-muted">Choose an image, MP4 video, YouTube/Vimeo video, embeddable public webpage, text slide, or PDF. By default, new slides are publicly visible immediately. Select “Library only” to prepare media privately for a screen draft.</p>
+        <form id="add-slide-form" method="post" enctype="multipart/form-data" action="/cgi-bin/koha/plugins/run.pl">
+            <input type="hidden" name="class" value="Koha::Plugin::Com::Library::PhotoSignage">
+            <input type="hidden" name="method" value="tool">
+            <input type="hidden" name="action" value="add">
+            <input type="hidden" name="csrf_token" value="[% csrf_token | html %]">
+            <div class="ps-form-row">
+                <div>
+                    <label for="media_type">Media type</label>
+                    <select id="media_type" name="media_type">
+                        <option value="image">Image</option>
+                        <option value="video">MP4 video file</option>
+                        <option value="video_link">YouTube or Vimeo link</option>
+                        <option value="webpage">Public webpage</option>
+                        <option value="text">Text slide</option>
+                        <option value="pdf">PDF document</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="caption">Caption (optional)</label>
+                    <input id="caption" type="text" name="caption" maxlength="180">
+                </div>
+            </div>
+            <div id="file-fields" class="ps-form-row" style="margin-top:1rem">
+                <div>
+                    <label id="file-label" for="media_file">Choose an image</label>
+                    <input id="media_file" type="file" name="media_file" accept="image/jpeg,image/png,image/gif,image/webp" required>
+                    <p id="file-limit" class="ps-muted">JPEG, PNG, GIF, or WebP · up to [% max_image_mb | html %] MB</p>
+                </div>
+            </div>
+            <div id="url-fields" class="ps-form-row" style="margin-top:1rem" hidden>
+                <div>
+                    <label id="url-label" for="media_url">Video or webpage URL</label>
+                    <input id="media_url" type="url" name="media_url" maxlength="2048" placeholder="https://">
+                    <p id="url-help" class="ps-muted"></p>
+                </div>
+            </div>
+            <div id="text-fields" style="margin-top:1rem" hidden>
+                <label for="slide_text">Text to display</label>
+                <textarea id="slide_text" name="slide_text" rows="4" maxlength="3000" style="width:100%;max-width:760px"></textarea>
+                <p class="ps-muted">Plain text only, up to 3,000 characters. HTML and scripts are not accepted.</p>
+            </div>
+            <div style="margin-top:1rem">
+                <label for="new-duration">Display duration (seconds, optional)</label>
+                <input id="new-duration" type="number" name="duration_seconds" min="1" max="86400" step="1" placeholder="Automatic">
+                <p class="ps-muted">Leave blank to use the slideshow default, or play an uploaded MP4 to the end. For YouTube/Vimeo, enter the desired time (for example, 240 for four minutes). An MP4 with a duration set advances at that limit or when it ends, whichever comes first.</p>
+            </div>
+            <div style="margin-top:1rem">
+                <label><input type="checkbox" name="library_only" value="1"> Library only: do not show in the original public slideshow</label>
+                <p class="ps-muted">Library-only media becomes public when included in an enabled, published screen.</p>
+                <button class="btn btn-primary" type="submit">Add to slideshow</button>
+            </div>
+        </form>
+    </section>
+
+    <script>
+        (function () {
+            const type = document.getElementById('media_type');
+            const fileFields = document.getElementById('file-fields');
+            const file = document.getElementById('media_file');
+            const fileLabel = document.getElementById('file-label');
+            const fileLimit = document.getElementById('file-limit');
+            const urlFields = document.getElementById('url-fields');
+            const url = document.getElementById('media_url');
+            const urlLabel = document.getElementById('url-label');
+            const urlHelp = document.getElementById('url-help');
+            const textFields = document.getElementById('text-fields');
+            const text = document.getElementById('slide_text');
+
+            function updateFields() {
+                const selected = type.value;
+                const fileInfo = {
+                    image: ['Choose an image', 'image/jpeg,image/png,image/gif,image/webp', 'JPEG, PNG, GIF, or WebP · up to [% max_image_mb | html %] MB'],
+                    video: ['Choose an MP4 video', 'video/mp4,.mp4', 'MP4 video · up to [% max_video_mb | html %] MB · videos play muted'],
+                    pdf: ['Choose a PDF', 'application/pdf,.pdf', 'PDF document · up to [% max_pdf_mb | html %] MB']
+                };
+                const needsFile = Object.prototype.hasOwnProperty.call(fileInfo, selected);
+                const needsUrl = selected === 'video_link' || selected === 'webpage';
+                fileFields.hidden = !needsFile;
+                file.required = needsFile;
+                if (needsFile) {
+                    fileLabel.textContent = fileInfo[selected][0];
+                    file.accept = fileInfo[selected][1];
+                    fileLimit.textContent = fileInfo[selected][2];
+                }
+                urlFields.hidden = !needsUrl;
+                url.required = needsUrl;
+                urlLabel.textContent = selected === 'video_link' ? 'YouTube or Vimeo URL' : 'Public webpage URL';
+                urlHelp.textContent = selected === 'video_link'
+                    ? 'Use a public video URL from youtube.com, youtu.be, or vimeo.com.'
+                    : 'Use an HTTPS page that permits embedding. Sites can block display in frames.';
+                textFields.hidden = selected !== 'text';
+                text.required = selected === 'text';
+            }
+            type.addEventListener('change', updateFields);
+            updateFields();
+        }());
+    </script>
+
+    <section class="ps-panel" aria-labelledby="settings-heading">
+        <h2 id="settings-heading">Slideshow settings</h2>
+        <form method="post" action="/cgi-bin/koha/plugins/run.pl">
+            <input type="hidden" name="class" value="Koha::Plugin::Com::Library::PhotoSignage">
+            <input type="hidden" name="method" value="tool">
+            <input type="hidden" name="action" value="settings">
+            <input type="hidden" name="csrf_token" value="[% csrf_token | html %]">
+            <div class="ps-form-row">
+                <div>
+                    <label for="interval_seconds">Default seconds per timed slide</label>
+                    <input id="interval_seconds" type="number" name="interval_seconds" min="3" max="600" value="[% settings.interval_seconds | html %]" required>
+                </div>
+                <div>
+                    <label for="fit">Image and video sizing</label>
+                    <select id="fit" name="fit">
+                        <option value="contain" [% IF settings.fit == 'contain' %]selected[% END %]>Show entire photo (may leave bars)</option>
+                        <option value="cover" [% IF settings.fit == 'cover' %]selected[% END %]>Fill screen (may crop edges)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="public_base_url">OPAC address fallback (optional)</label>
+                    <input id="public_base_url" type="url" name="public_base_url" maxlength="2048" value="[% settings.public_base_url | html %]" placeholder="https://catalogue.your-library.org" aria-describedby="public-base-help">
+                    <p id="public-base-help" class="ps-muted">Normally follows Koha’s OPACBaseURL, including HTTP/HTTPS, port, and path prefix. Only when that setting is missing or invalid, use this library’s public catalogue address instead. Do not enter the staff-client address.</p>
+                </div>
+                <button class="btn btn-default" type="submit">Save settings</button>
+            </div>
+        </form>
+    </section>
+
+    <section aria-labelledby="slides-heading">
+        <h2 id="slides-heading">Slideshow items</h2>
+        <p class="ps-muted">[% active_count | html %] active of [% slide_count | html %] items. Use the arrows to change order.</p>
+        [% IF slides.size %]
+            <div class="ps-list">
+                [% FOREACH slide IN slides %]
+                    <article class="ps-photo">
+                        [% IF slide.media_type == 'image' %]
+                            <img class="ps-thumb" src="[% slide.asset_url | html %]" alt="">
+                        [% ELSIF slide.media_type == 'video' %]
+                    <div class="ps-type-placeholder">MP4 video</div>
+                        [% ELSE %]
+                            <div class="ps-type-placeholder">[% slide.type_label | html %]</div>
+                        [% END %]
+                        <div>
+                            <form method="post" action="/cgi-bin/koha/plugins/run.pl">
+                                <input type="hidden" name="class" value="Koha::Plugin::Com::Library::PhotoSignage">
+                                <input type="hidden" name="method" value="tool">
+                                <input type="hidden" name="action" value="update">
+                                <label for="duration-[% slide.id | html %]">Display duration (seconds, optional)</label>
+                                <input id="duration-[% slide.id | html %]" type="number" name="duration_seconds" min="1" max="86400" step="1" value="[% slide.duration_seconds | html %]" placeholder="Automatic">
+                                <p class="ps-muted">Blank: slideshow default; uploaded MP4s play to the end. YouTube/Vimeo: set the desired seconds. Limit: 86,400 seconds (24 hours).</p>
+                                <input type="hidden" name="id" value="[% slide.id | html %]">
+                                <input type="hidden" name="csrf_token" value="[% csrf_token | html %]">
+                                <strong>[% slide.type_label | html %]</strong>
+                                <label for="caption_[% slide.id | html %]">Caption</label>
+                                <input id="caption_[% slide.id | html %]" type="text" name="caption" maxlength="180" value="[% slide.caption | html %]">
+                                [% IF slide.media_type == 'text' %]
+                                    <label for="text_[% slide.id | html %]">Text</label>
+                                    <textarea id="text_[% slide.id | html %]" name="slide_text" rows="3" maxlength="3000" style="width:100%">[% slide.text | html %]</textarea>
+                                [% END %]
+                                [% IF slide.source_url %]
+                                    <p class="ps-source ps-muted"><a href="[% slide.source_url | html %]" target="_blank" rel="noopener noreferrer">[% slide.source_label | html %]</a></p>
+                                [% END %]
+                                <label style="display:inline-block;margin:.6rem 0 0">
+                                    <input type="checkbox" name="enabled" value="1" [% IF slide.enabled %]checked[% END %]>
+                                    Show in original public slideshow
+                                </label>
+                                <button class="btn btn-default" type="submit">Save</button>
+                            </form>
+                            [% UNLESS slide.enabled %]<p class="ps-muted">Not in the original slideshow. Enabled published screens may still use this item.</p>[% END %]
+                            [% IF slide.screen_usage %]<p class="ps-muted">Used by: [% slide.screen_usage | html %]. Remove references before deleting or disabling this item.</p>[% END %]
+                        </div>
+                        <div class="ps-controls">
+                            <form method="post" action="/cgi-bin/koha/plugins/run.pl">
+                                <input type="hidden" name="class" value="Koha::Plugin::Com::Library::PhotoSignage">
+                                <input type="hidden" name="method" value="tool">
+                                <input type="hidden" name="action" value="move">
+                                <input type="hidden" name="id" value="[% slide.id | html %]">
+                                <input type="hidden" name="direction" value="up">
+                                <input type="hidden" name="csrf_token" value="[% csrf_token | html %]">
+                                <button class="btn btn-default" type="submit" aria-label="Move slide up">↑</button>
+                            </form>
+                            <form method="post" action="/cgi-bin/koha/plugins/run.pl">
+                                <input type="hidden" name="class" value="Koha::Plugin::Com::Library::PhotoSignage">
+                                <input type="hidden" name="method" value="tool">
+                                <input type="hidden" name="action" value="move">
+                                <input type="hidden" name="id" value="[% slide.id | html %]">
+                                <input type="hidden" name="direction" value="down">
+                                <input type="hidden" name="csrf_token" value="[% csrf_token | html %]">
+                                <button class="btn btn-default" type="submit" aria-label="Move slide down">↓</button>
+                            </form>
+                            <form method="post" action="/cgi-bin/koha/plugins/run.pl" onsubmit="return confirm('Remove this slide from the slideshow?');">
+                                <input type="hidden" name="class" value="Koha::Plugin::Com::Library::PhotoSignage">
+                                <input type="hidden" name="method" value="tool">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="id" value="[% slide.id | html %]">
+                                <input type="hidden" name="csrf_token" value="[% csrf_token | html %]">
+                                <button class="btn btn-danger" type="submit">Remove</button>
+                            </form>
+                        </div>
+                    </article>
+                [% END %]
+            </div>
+        [% ELSE %]
+            <div class="ps-panel">
+                <p>No slides yet. Add an image, video, webpage, text, or PDF above to create your slideshow.</p>
+            </div>
+        [% END %]
+    </section>
+</main>
+[% INCLUDE 'intranet-bottom.inc' %]
+</body>
+</html>
